@@ -1,0 +1,64 @@
+# spexflix-media: serves processed video, thumbnails and subtitles from signed, expiring addresses, without asking the
+# API for every segment. The API signs  /v/<expires>/<signature>/<uuid>/<path>  with
+# signature = base64url(md5("<expires><uuid> <MEDIA_SIGNING_KEY>")), so one signature covers one video until it expires.
+# Originals are not under /media/hls and are never served.
+
+log_format media '$remote_addr [$time_local] "$request_method $media_uuid" $status $body_bytes_sent "$http_user_agent"';
+
+map $uri $media_uuid {
+    "~^/v/\d+/[^/]+/(?<u>[0-9a-f-]{36})/" $u;
+    default -;
+}
+
+server {
+    listen 80;
+    server_tokens off;
+    autoindex off;
+    # The signature is left out of the log
+    access_log /var/log/nginx/access.log media;
+
+    location = /healthz {
+        access_log off;
+        return 200 "ok\n";
+    }
+
+    location ~ "^/v/(?<expires>\d+)/(?<signature>[A-Za-z0-9_-]+)/(?<uuid>[0-9a-f-]{36})/(?<file>[A-Za-z0-9_./-]+)$" {
+        limit_except GET HEAD OPTIONS {
+            deny all;
+        }
+
+        secure_link $signature,$expires;
+        secure_link_md5 "$expires$uuid ${MEDIA_SIGNING_KEY}";
+
+        if ($secure_link = "") {
+            return 403;
+        }
+        if ($secure_link = "0") {
+            return 410;
+        }
+
+        add_header Access-Control-Allow-Origin "${SPEXFLIX_WEB_ORIGIN}" always;
+        add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Range" always;
+        add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
+        add_header Cache-Control "private, max-age=3600" always;
+        add_header X-Content-Type-Options nosniff always;
+
+        if ($request_method = OPTIONS) {
+            return 204;
+        }
+
+        types {
+            application/vnd.apple.mpegurl m3u8;
+            video/mp2t ts;
+            text/vtt vtt;
+            image/jpeg jpg;
+        }
+        default_type application/octet-stream;
+        alias /media/hls/$uuid/$file;
+    }
+
+    location / {
+        return 404;
+    }
+}
