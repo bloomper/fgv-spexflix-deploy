@@ -43,7 +43,7 @@ x-api: &api
       target: API_KEYCLOAK_ADMIN_CLIENT_SECRET
     - source: KEYCLOAK_SERVICE_CLIENT_SECRET
       target: API_KEYCLOAK_SERVICE_CLIENT_SECRET
-    - MEDIA_SIGNING_KEY
+    - API_MEDIA_SIGNING_KEY
     - SAMPLE_USER_PASSWORD
 
 services:
@@ -152,7 +152,7 @@ services:
       - sh
       - -c
       - |
-        export MEDIA_SIGNING_KEY=$$(cat /run/secrets/MEDIA_SIGNING_KEY)
+        export API_MEDIA_SIGNING_KEY=$$(cat /run/secrets/API_MEDIA_SIGNING_KEY)
         exec /docker-entrypoint.sh nginx -g 'daemon off;'
     environment:
       SPEXFLIX_WEB_ORIGIN: https://${WEB_HOST}
@@ -169,7 +169,7 @@ services:
     networks:
       - fgv
     secrets:
-      - MEDIA_SIGNING_KEY
+      - API_MEDIA_SIGNING_KEY
 
 volumes:
   mysql_data:
@@ -190,8 +190,8 @@ secrets:
     file: ./secrets/KEYCLOAK_ADMIN_CLIENT_SECRET
   KEYCLOAK_CLIENT_SECRET:
     file: ./secrets/KEYCLOAK_CLIENT_SECRET
-  MEDIA_SIGNING_KEY:
-    file: ./secrets/MEDIA_SIGNING_KEY
+  API_MEDIA_SIGNING_KEY:
+    file: ./secrets/API_MEDIA_SIGNING_KEY
   SAMPLE_USER_PASSWORD:
     file: ./secrets/SAMPLE_USER_PASSWORD
   WEB_AUTH_SECRET:

@@ -36,7 +36,7 @@ random() { openssl rand -base64 96 | tr -dc 'A-Za-z0-9' | head -c "$1"; }
 generate MYSQL_ROOT_PASSWORD "$(random 32)"
 generate MYSQL_USER_PASSWORD "$(random 32)"
 # Shared by the API and spexflix-media, which checks the signed playback addresses
-generate MEDIA_SIGNING_KEY "$(random 48)"
+generate API_MEDIA_SIGNING_KEY "$(random 48)"
 copy_client_secret KEYCLOAK_CLIENT_SECRET fgv-spexflix
 copy_client_secret KEYCLOAK_SERVICE_CLIENT_SECRET fgv-spexflix-service
 # Only the sample data import manages Keycloak users, so the API gets fgv-admin's secret only when it imports

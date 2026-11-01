@@ -1,6 +1,7 @@
 # spexflix-media: serves processed video, thumbnails and subtitles from signed, expiring addresses, without asking the
 # API for every segment. The API signs  /v/<expires>/<signature>/<uuid>/<path>  with
-# signature = base64url(md5("<expires><uuid> <MEDIA_SIGNING_KEY>")), so one signature covers one video until it expires.
+# signature = base64url(md5("<expires><uuid> <API_MEDIA_SIGNING_KEY>")), so one signature covers one video until it
+# expires.
 # Originals are not under /media/hls and are never served.
 
 log_format media '$remote_addr [$time_local] "$request_method $media_uuid" $status $body_bytes_sent "$http_user_agent"';
@@ -28,7 +29,7 @@ server {
         }
 
         secure_link $signature,$expires;
-        secure_link_md5 "$expires$uuid ${MEDIA_SIGNING_KEY}";
+        secure_link_md5 "$expires$uuid ${API_MEDIA_SIGNING_KEY}";
 
         if ($secure_link = "") {
             return 403;
