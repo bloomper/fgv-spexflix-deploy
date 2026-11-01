@@ -1,0 +1,198 @@
+name: fgv-spexflix-${DEPLOY_ENV:?DEPLOY_ENV must be set in .env}
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "5"
+
+x-api: &api
+  image: ${API_IMAGE:?API_IMAGE must be set in .env}
+  environment: &api-environment
+    SPRING_DATASOURCE_URL: jdbc:mysql://spexflix-mysql/${MYSQL_DATABASE}
+    SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
+    SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak-server:8080/auth/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+    SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: https://${KEYCLOAK_HOST}/auth/realms/${KEYCLOAK_REALM}
+    SPRING_PROFILES_ACTIVE: ${DEPLOY_ENV}
+    LOGGING_FILE_PATH: /data/log_data
+    API_KEYCLOAK_URL: http://keycloak-server:8080/auth
+    API_KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+    API_KEYCLOAK_ADMIN_CLIENT_ID: fgv-admin
+    API_MEDIA_ROOT: /data/media
+    API_MEDIA_BASE_URL: https://${MEDIA_HOST}
+    API_MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-50GB}
+    API_SPEXREGISTER_GRAPHQL_URL: ${SPEXREGISTER_GRAPHQL_URL:-http://spexregister-api:8080/api/graphql}
+    API_SPEXIFY_GRAPHQL_URL: ${SPEXIFY_GRAPHQL_URL:-}
+    API_WORKER_ENABLED: "false"
+    API_IMPORT_SAMPLE_DATA: "false"
+  restart: unless-stopped
+  logging: *logging
+  healthcheck:
+    test: [ "CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000;printf \"GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n\" >&3;grep -q \"^HTTP/1.1 200\" <&3" ]
+    interval: 10s
+    timeout: 5s
+    retries: 30
+    start_period: 120s
+  depends_on:
+    spexflix-mysql:
+      condition: service_healthy
+  secrets:
+    - source: MYSQL_USER_PASSWORD
+      target: MYSQL_API_USER_PASSWORD
+    - source: KEYCLOAK_ADMIN_CLIENT_SECRET
+      target: API_KEYCLOAK_ADMIN_CLIENT_SECRET
+    - source: KEYCLOAK_SERVICE_CLIENT_SECRET
+      target: API_KEYCLOAK_SERVICE_CLIENT_SECRET
+    - API_MEDIA_SIGNING_KEY
+    - SAMPLE_USER_PASSWORD
+
+services:
+  spexflix-mysql:
+    image: ${MYSQL_IMAGE:-mysql:8.4}
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/MYSQL_ROOT_PASSWORD
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD_FILE: /run/secrets/MYSQL_USER_PASSWORD
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    volumes:
+      - mysql_data:/var/lib/mysql
+    secrets:
+      - MYSQL_ROOT_PASSWORD
+      - MYSQL_USER_PASSWORD
+
+  # GraphQL, uploads and posters. On the shared network for Keycloak, Spexregister and Spexify, which asks it for links
+  spexflix-api:
+    <<: *api
+    environment:
+      <<: *api-environment
+      API_IMPORT_SAMPLE_DATA: ${API_IMPORT_SAMPLE_DATA:-false}
+      API_SAMPLE_DATA_SIZE: ${API_SAMPLE_DATA_SIZE:-small}
+      API_SAMPLE_DATA_PREPROCESSED: ${API_SAMPLE_DATA_PREPROCESSED:-false}
+    volumes:
+      - ./data/api/log_data:/data/log_data
+      - ./data/media:/data/media
+    networks:
+      - default
+      - fgv
+
+  # The same image, processing uploads one at a time with ffmpeg at low priority
+  spexflix-worker:
+    <<: *api
+    environment:
+      <<: *api-environment
+      API_WORKER_ENABLED: "true"
+    cpus: ${WORKER_CPUS:-2}
+    depends_on:
+      spexflix-mysql:
+        condition: service_healthy
+      spexflix-api:
+        condition: service_healthy
+    volumes:
+      - ./data/worker/log_data:/data/log_data
+      - ./data/media:/data/media
+    networks:
+      - default
+      - fgv
+
+  spexflix-web:
+    image: ${WEB_IMAGE:?WEB_IMAGE must be set in .env}
+    command:
+      - sh
+      - -c
+      - |
+        export AUTH_SECRET=$$(cat /run/secrets/WEB_AUTH_SECRET)
+        export KEYCLOAK_CLIENT_SECRET=$$(cat /run/secrets/KEYCLOAK_CLIENT_SECRET)
+        exec node server.js
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+      BETTER_AUTH_URL: https://${WEB_HOST}
+      KEYCLOAK_CLIENT_ID: fgv-spexflix
+      KEYCLOAK_ISSUER: https://${KEYCLOAK_HOST}/auth/realms/${KEYCLOAK_REALM}
+      API_GRAPHQL_ENDPOINT: http://spexflix-api:8080/api/graphql
+      MEDIA_ORIGIN: https://${MEDIA_HOST}
+      SPEXIFY_WEB_URL: ${SPEXIFY_WEB_URL:-}
+      SPEXREGISTER_WEB_URL: ${SPEXREGISTER_WEB_URL:-}
+      SUPPORTED_LOCALES: ${SUPPORTED_LOCALES:-sv,en}
+      DEFAULT_LOCALE: ${DEFAULT_LOCALE:-sv}
+      SUPPORT_EMAIL: ${SUPPORT_EMAIL}
+      FEEDBACK_EMAIL: ${FEEDBACK_EMAIL}
+      UMAMI_URL: http://umami-server:3000
+      UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: [ "CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:3000/api/auth/ok" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    depends_on:
+      spexflix-api:
+        condition: service_healthy
+    networks:
+      - default
+      - fgv
+    secrets:
+      - WEB_AUTH_SECRET
+      - KEYCLOAK_CLIENT_SECRET
+
+  # Serves renditions, thumbnails and subtitles from signed addresses; reached by the edge proxy in fgv-infra-deploy
+  spexflix-media:
+    image: ${NGINX_IMAGE:-nginx:1.29-alpine}
+    command:
+      - sh
+      - -c
+      - |
+        export API_MEDIA_SIGNING_KEY=$$(cat /run/secrets/API_MEDIA_SIGNING_KEY)
+        exec /docker-entrypoint.sh nginx -g 'daemon off;'
+    environment:
+      SPEXFLIX_WEB_ORIGIN: https://${WEB_HOST}
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: [ "CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1/healthz" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ./media/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./data/media/hls:/media/hls:ro
+    networks:
+      - fgv
+    secrets:
+      - API_MEDIA_SIGNING_KEY
+
+volumes:
+  mysql_data:
+
+networks:
+  fgv:
+    name: fgv-${DEPLOY_ENV}
+    external: true
+
+secrets:
+  MYSQL_ROOT_PASSWORD:
+    file: ./secrets/MYSQL_ROOT_PASSWORD
+  MYSQL_USER_PASSWORD:
+    file: ./secrets/MYSQL_USER_PASSWORD
+  KEYCLOAK_SERVICE_CLIENT_SECRET:
+    file: ./secrets/KEYCLOAK_SERVICE_CLIENT_SECRET
+  KEYCLOAK_ADMIN_CLIENT_SECRET:
+    file: ./secrets/KEYCLOAK_ADMIN_CLIENT_SECRET
+  KEYCLOAK_CLIENT_SECRET:
+    file: ./secrets/KEYCLOAK_CLIENT_SECRET
+  API_MEDIA_SIGNING_KEY:
+    file: ./secrets/API_MEDIA_SIGNING_KEY
+  SAMPLE_USER_PASSWORD:
+    file: ./secrets/SAMPLE_USER_PASSWORD
+  WEB_AUTH_SECRET:
+    file: ./secrets/WEB_AUTH_SECRET
