@@ -85,8 +85,9 @@ docker compose up -d
 | `WORKER_CPUS`                     | CPUs the worker may use                                                      |
 | `MAX_UPLOAD_SIZE`                 | The largest upload the deployment accepts; admins can lower it in the web    |
 | `SPEXREGISTER_GRAPHQL_URL`        | Spexregister's GraphQL endpoint on the shared network                        |
-| `SPEXIFY_GRAPHQL_URL`, `SPEXIFY_WEB_URL` | Spexify, for links between chapters and tracks; empty without Spexify |
-| `SPEXREGISTER_WEB_URL`            | Spexregister's web, for links to a spex                                      |
+| `SPEXIFY_GRAPHQL_URL`, `SPEXIFY_WEB_URL` | Spexify, for links between chapters and tracks; empty without Spexify; also the application switcher |
+| `SPEXREGISTER_WEB_URL`            | Spexregister's web, for links to a spex; also the application switcher       |
+| `FGV_REVIVAL_WEB_URL`             | Nyuppsättning's web, for the application switcher                            |
 | `API_IMPORT_SAMPLE_DATA`          | `true` on staging only: replaces all data at every start                     |
 | `API_SAMPLE_DATA_SIZE`, `API_SAMPLE_DATA_PREPROCESSED` | `small` or `large`; `true` to process every sample video at start |
 | `SUPPORT_EMAIL`, `FEEDBACK_EMAIL` | Shown on the Support and About pages                                         |
