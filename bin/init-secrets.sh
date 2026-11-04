@@ -58,3 +58,9 @@ if [[ ! -s secrets/cloudflared.env ]]; then
   printf 'TUNNEL_TOKEN=\n' > secrets/cloudflared.env
   echo "created secrets/cloudflared.env (staging only: paste the tunnel token into it)"
 fi
+
+# The containers run as other users than the one owning secrets/, so the secret files must be readable; the
+# directory itself stays closed to others
+chmod 700 secrets
+find secrets -maxdepth 1 -type f ! -name '*.env' -exec chmod 644 {} +
+chmod 600 secrets/*.env
