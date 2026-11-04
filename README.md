@@ -1,17 +1,17 @@
 # Spexflix Deploy
 
 Docker Compose setup for running Spexflix (API, worker, web, MySQL and the media server) on a single host, next to
-[spexregister-deploy][1] and [fgv-infra-deploy][2], which runs Keycloak, the shared network `fgv-<DEPLOY_ENV>` and the
-edge proxy.
+[spexregister-deploy][1] and [fgv-infra-deploy][2], which runs Keycloak, the shared network `fgv-<DEPLOY_ENV>` and what
+serves the media hostname: the tailnet containers on staging, the edge proxy on production.
 
-Cloudflare is used on staging only. Production uses no Cloudflare Tunnel, DNS or Access: its own reverse proxy serves
-`WEB_HOST`, `API_HOST` and `MEDIA_HOST` (see *Production*).
+Cloudflare and Tailscale are used on staging only. Production uses neither: its own reverse proxy serves `WEB_HOST`,
+`API_HOST` and `MEDIA_HOST` (see *Production*).
 
 ```
 Staging:
 Browser ──https──▶ Cloudflare ──tunnel──▶ cloudflared ─┬─▶ spexflix-web:3000            (WEB_HOST)
                                                        └─▶ spexflix-api:8080            (API_HOST, optional)
-Browser ──https──▶ edge-caddy (fgv-infra-deploy) ──▶ spexflix-media:80                 (MEDIA_HOST, DNS-only)
+Browser ──tailnet──▶ tailnet-spexflix-media (fgv-infra-deploy) ──▶ spexflix-media:80   (MEDIA_HOST)
 
 spexflix-web ──▶ spexflix-api ──▶ spexflix-mysql
                  spexflix-worker ──▶ spexflix-mysql          (processes uploads with ffmpeg)
@@ -21,10 +21,12 @@ spexify-api ──▶ spexflix-api                                  (chapter lin
 
 - On staging, the web goes through the Cloudflare Tunnel like Spexregister. Uploads are tus chunks of at most 50 MB
   through the web, below the request limit of Cloudflare's free plan. The API hostname is needed only for `/docs`.
-- Video goes to viewers straight from the host, on staging because Cloudflare's CDN terms restrict serving video on the
-  free plans. `MEDIA_HOST` is a DNS-only record served by `edge-caddy` (`compose.edge.yaml` in `fgv-infra-deploy`), which
-  forwards to `spexflix-media`: nginx, serving only files under signed, expiring addresses (`media/default.conf.template`,
-  nginx `secure_link`). Originals are never served.
+- Video doesn't go through Cloudflare, whose CDN terms restrict serving video on the free plans. Staging's host isn't
+  reachable from the internet, so `MEDIA_HOST` is a machine of the tailnet, `spexflix-media-staging.<tailnet>.ts.net`
+  (`compose.tailnet.yaml` in `fgv-infra-deploy`, see its *Tailnet*). Testers need Tailscale on the devices they watch on;
+  without it the web works but videos don't play. On production, `edge-caddy` or production's reverse proxy serves it.
+  Either way it forwards to `spexflix-media`: nginx, serving only files under signed, expiring addresses
+  (`media/default.conf.template`, nginx `secure_link`). Originals are never served.
 
 ## Files
 
@@ -46,8 +48,9 @@ spexify-api ──▶ spexflix-api                                  (chapter lin
 ## 1. Host
 
 - `fgv-infra-deploy` running with a realm that has the `fgv-spexflix` and `fgv-spexflix-service` clients. Its `.env`
-  names this deployment's `WEB_HOST` as `SPEXFLIX_WEB_HOST` and `MEDIA_HOST` as `SPEXFLIX_MEDIA_HOST`, and its edge proxy
-  (`compose.edge.yaml`) runs, with only ports 80 and 443 open on the host.
+  names this deployment's `WEB_HOST` as `SPEXFLIX_WEB_HOST`. On staging, its tailnet containers (`compose.tailnet.yaml`)
+  run; on production, its edge proxy (`compose.edge.yaml`, whose `.env` names `MEDIA_HOST` as `SPEXFLIX_MEDIA_HOST`) or
+  production's own reverse proxy.
 - `spexregister-deploy` running a `spexregister-server` release that knows the `MEDIA` role.
 - Optionally `fgv-spexify-deploy`, for links between chapters and tracks.
 - Enough disk for the media: a full show of two and a half hours takes about 10 GB of renditions plus its original.
@@ -67,10 +70,11 @@ production's reverse proxy (see *Production*).
    | `WEB_HOST`   | `http://spexflix-web:3000`  |
    | `API_HOST`   | `http://spexflix-api:8080`  |
 
-3. Add a **DNS-only** (grey cloud) A/AAAA record for `MEDIA_HOST` pointing at the host.
-4. Restrict `WEB_HOST` to testers with Cloudflare Access, as `spexregister-deploy`'s README describes. Leave `API_HOST`
-   unprotected, as Spexregister's: the API already requires a Keycloak token. The media hostname needs no Access
-   either: its addresses are signed and expire.
+3. Restrict `WEB_HOST` to testers with Cloudflare Access, as `spexregister-deploy`'s README describes. Leave `API_HOST`
+   unprotected, as Spexregister's: the API already requires a Keycloak token.
+
+`MEDIA_HOST` is not on Cloudflare: it is the tailnet name of `tailnet-spexflix-media`, e.g.
+`spexflix-media-staging.tail1234.ts.net` (see *Tailnet* in `fgv-infra-deploy`). Its addresses are signed and expire.
 
 ## 3. Checkout and configuration
 
@@ -90,7 +94,7 @@ docker compose up -d
 |-----------------------------------|------------------------------------------------------------------------------|
 | `WEB_HOST`                        | Spexflix's address                                                           |
 | `API_HOST`                        | Public address of the API, for `/docs`                                       |
-| `MEDIA_HOST`                      | The DNS-only media hostname                                                  |
+| `MEDIA_HOST`                      | The media hostname: on staging the tailnet name of `tailnet-spexflix-media`   |
 | `KEYCLOAK_HOST`, `KEYCLOAK_REALM` | Keycloak's public address and realm                                          |
 | `WORKER_CPUS`                     | CPUs the worker may use                                                      |
 | `MAX_UPLOAD_SIZE`                 | The largest upload the deployment accepts; admins can lower it in the web    |
@@ -146,6 +150,7 @@ the users. Spexregister deletes all Keycloak users on every start of its sample 
 |---------------------------------------------------|-----------------------------------------------------------------------------|
 | Videos don't play; the browser shows 403 from `MEDIA_HOST` | `API_MEDIA_SIGNING_KEY` differs between the API and `spexflix-media`, or the clocks differ |
 | Videos don't play; the console names a Content Security Policy | `MEDIA_HOST` changed without restarting `spexflix-web`             |
+| Videos don't play; `MEDIA_HOST` can't be reached (staging) | The device isn't on the tailnet or not allowed `tag:fgv-staging`, or `tailnet-spexflix-media` isn't running |
 | Videos stay "processing"                          | `spexflix-worker` is down; see *Bearbetning* under *Redigera*               |
 | Login fails with "Invalid parameter: redirect_uri" | `SPEXFLIX_WEB_HOST` in `fgv-infra-deploy` doesn't match `WEB_HOST`         |
 
