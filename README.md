@@ -5,11 +5,12 @@ Docker Compose setup for running Spexflix (API, worker, web, MySQL and the media
 edge proxy.
 
 Cloudflare is used on staging only. Production uses no Cloudflare Tunnel, DNS or Access: its own reverse proxy serves
-`WEB_HOST` and `MEDIA_HOST` (see *Production*).
+`WEB_HOST`, `API_HOST` and `MEDIA_HOST` (see *Production*).
 
 ```
 Staging:
-Browser ──https──▶ Cloudflare ──tunnel──▶ cloudflared ──▶ spexflix-web:3000            (WEB_HOST)
+Browser ──https──▶ Cloudflare ──tunnel──▶ cloudflared ─┬─▶ spexflix-web:3000            (WEB_HOST)
+                                                       └─▶ spexflix-api:8080            (API_HOST, optional)
 Browser ──https──▶ edge-caddy (fgv-infra-deploy) ──▶ spexflix-media:80                 (MEDIA_HOST, DNS-only)
 
 spexflix-web ──▶ spexflix-api ──▶ spexflix-mysql
@@ -19,7 +20,7 @@ spexify-api ──▶ spexflix-api                                  (chapter lin
 ```
 
 - On staging, the web goes through the Cloudflare Tunnel like Spexregister. Uploads are tus chunks of at most 50 MB
-  through the web, below the request limit of Cloudflare's free plan. The API has no public hostname.
+  through the web, below the request limit of Cloudflare's free plan. The API hostname is needed only for `/docs`.
 - Video goes to viewers straight from the host, on staging because Cloudflare's CDN terms restrict serving video on the
   free plans. `MEDIA_HOST` is a DNS-only record served by `edge-caddy` (`compose.edge.yaml` in `fgv-infra-deploy`), which
   forwards to `spexflix-media`: nginx, serving only files under signed, expiring addresses (`media/default.conf.template`,
@@ -30,7 +31,7 @@ spexify-api ──▶ spexflix-api                                  (chapter lin
 | File                          | Purpose                                                                    |
 |-------------------------------|----------------------------------------------------------------------------|
 | `compose.yaml`                | `spexflix-mysql`, `spexflix-api`, `spexflix-worker`, `spexflix-web`, `spexflix-media` |
-| `compose.tunnel.yaml`         | `cloudflared` connector for `WEB_HOST`, staging only                       |
+| `compose.tunnel.yaml`         | `cloudflared` connector for `WEB_HOST` and `API_HOST`, staging only        |
 | `media/default.conf.template` | The media server's nginx configuration                                     |
 | `staging.env.example`, `production.env.example` | Templates for `.env`                                     |
 | `bin/init-secrets.sh`         | Generates secrets into `secrets/` and copies the client secrets from `fgv-infra-deploy` |
@@ -54,14 +55,22 @@ spexify-api ──▶ spexflix-api                                  (chapter lin
 
 ## 2. Cloudflare (staging only)
 
-Only staging uses Cloudflare. On production, skip this section and point `WEB_HOST` and `MEDIA_HOST` at production's
-reverse proxy (see *Production*).
+Only staging uses Cloudflare. On production, skip this section and point `WEB_HOST`, `API_HOST` and `MEDIA_HOST` at
+production's reverse proxy (see *Production*).
 
-1. Create a tunnel (Networking → Tunnels → *Create a tunnel* → Cloudflared) and copy its token.
-2. Add one published application: `WEB_HOST` → `http://spexflix-web:3000`.
+1. Create a tunnel (Networking → Tunnels → *Create a tunnel* → Cloudflared), e.g. `fgv-spexflix-staging`, and copy
+   its token.
+2. On the tunnel's **Routes** tab, add a published application for each row below:
+
+   | Hostname     | Service URL                 |
+   |--------------|-----------------------------|
+   | `WEB_HOST`   | `http://spexflix-web:3000`  |
+   | `API_HOST`   | `http://spexflix-api:8080`  |
+
 3. Add a **DNS-only** (grey cloud) A/AAAA record for `MEDIA_HOST` pointing at the host.
-4. Restrict `WEB_HOST` to testers with Cloudflare Access, as `spexregister-deploy`'s README describes. The
-   media hostname needs no Access: its addresses are signed and expire.
+4. Restrict `WEB_HOST` to testers with Cloudflare Access, as `spexregister-deploy`'s README describes. Leave `API_HOST`
+   unprotected, as Spexregister's: the API already requires a Keycloak token. The media hostname needs no Access
+   either: its addresses are signed and expire.
 
 ## 3. Checkout and configuration
 
@@ -80,6 +89,7 @@ docker compose up -d
 | Variable                          | Purpose                                                                      |
 |-----------------------------------|------------------------------------------------------------------------------|
 | `WEB_HOST`                        | Spexflix's address                                                           |
+| `API_HOST`                        | Public address of the API, for `/docs`                                       |
 | `MEDIA_HOST`                      | The DNS-only media hostname                                                  |
 | `KEYCLOAK_HOST`, `KEYCLOAK_REALM` | Keycloak's public address and realm                                          |
 | `WORKER_CPUS`                     | CPUs the worker may use                                                      |
@@ -124,8 +134,9 @@ the users. Spexregister deletes all Keycloak users on every start of its sample 
 - `.env` from `production.env.example`: `DEPLOY_ENV=production` (the API then refuses sample data),
   `API_IMPORT_SAMPLE_DATA=false`, and images pinned to release versions.
 - No Cloudflare: `COMPOSE_FILE` leaves out `compose.tunnel.yaml` and needs no `secrets/cloudflared.env`. Production's
-  own reverse proxy terminates TLS and forwards `WEB_HOST` to `spexflix-web:3000` (tus chunks of up to 50 MB) and
-  `MEDIA_HOST` to `spexflix-media:80` (GET and HEAD only), as `fgv-infra-deploy`'s *Edge proxy* describes.
+  own reverse proxy terminates TLS and forwards `WEB_HOST` to `spexflix-web:3000` (tus chunks of up to 50 MB),
+  `API_HOST` to `spexflix-api:8080` and `MEDIA_HOST` to `spexflix-media:80` (GET and HEAD only), as
+  `fgv-infra-deploy`'s *Edge proxy* describes.
 - `bin/backup-db.sh` and `bin/backup-media.sh` in cron, with `backups/` copied off the host.
 - The old Spexflix's videos are moved in once with `fgv-spexflix-migration`, when they are found.
 
