@@ -2,7 +2,7 @@
 
 Docker Compose setup for running Spexflix (API, worker, web, MySQL and the media server) on a single host, next to
 [spexregister-deploy][1] and [fgv-infra-deploy][2], which runs Keycloak, the shared network `fgv-<DEPLOY_ENV>` and what
-serves the media hostname: the tailnet containers on staging, the edge proxy on production.
+serves the media hostname: Tailscale Funnel on staging, the edge proxy on production.
 
 Cloudflare and Tailscale are used on staging only. Production uses neither: its own reverse proxy serves `WEB_HOST`,
 `API_HOST` and `MEDIA_HOST` (see *Production*).
@@ -11,7 +11,7 @@ Cloudflare and Tailscale are used on staging only. Production uses neither: its 
 Staging:
 Browser ──https──▶ Cloudflare ──tunnel──▶ cloudflared ─┬─▶ spexflix-web:3000            (WEB_HOST)
                                                        └─▶ spexflix-api:8080            (API_HOST, optional)
-Browser ──tailnet──▶ tailnet-spexflix-media (fgv-infra-deploy) ──▶ spexflix-media:80   (MEDIA_HOST)
+Browser ──https──▶ Tailscale Funnel ──▶ tailnet-spexflix-media (fgv-infra-deploy) ──▶ spexflix-media:80   (MEDIA_HOST)
 
 spexflix-web ──▶ spexflix-api ──▶ spexflix-mysql
                  spexflix-worker ──▶ spexflix-mysql          (processes uploads with ffmpeg)
@@ -22,9 +22,9 @@ spexify-api ──▶ spexflix-api                                  (chapter lin
 - On staging, the web goes through the Cloudflare Tunnel like Spexregister. Uploads are tus chunks of at most 50 MB
   through the web, below the request limit of Cloudflare's free plan. The API hostname is needed only for `/docs`.
 - Video doesn't go through Cloudflare, whose CDN terms restrict serving video on the free plans. Staging's host isn't
-  reachable from the internet, so `MEDIA_HOST` is a machine of the tailnet, `spexflix-media-staging.<tailnet>.ts.net`
-  (`compose.tailnet.yaml` in `fgv-infra-deploy`, see its *Tailnet*). Testers need Tailscale on the devices they watch on;
-  without it the web works but videos don't play. On production, `edge-caddy` or production's reverse proxy serves it.
+  reachable from the internet, so `MEDIA_HOST` is `spexflix-media-staging.<tailnet>.ts.net`, published with Tailscale
+  Funnel (`compose.tailnet.yaml` in `fgv-infra-deploy`, see its *Tailnet*); viewers need no Tailscale. Funnel's
+  bandwidth is limited, which suits a few testers. On production, `edge-caddy` or production's reverse proxy serves it.
   Either way it forwards to `spexflix-media`: nginx, serving only files under signed, expiring addresses
   (`media/default.conf.template`, nginx `secure_link`). Originals are never served.
 
@@ -73,7 +73,7 @@ production's reverse proxy (see *Production*).
 3. Restrict `WEB_HOST` to testers with Cloudflare Access, as `spexregister-deploy`'s README describes. Leave `API_HOST`
    unprotected, as Spexregister's: the API already requires a Keycloak token.
 
-`MEDIA_HOST` is not on Cloudflare: it is the tailnet name of `tailnet-spexflix-media`, e.g.
+`MEDIA_HOST` is not on Cloudflare: it is the Funnel name of `tailnet-spexflix-media`, e.g.
 `spexflix-media-staging.tail1234.ts.net` (see *Tailnet* in `fgv-infra-deploy`). Its addresses are signed and expire.
 
 ## 3. Checkout and configuration
@@ -94,7 +94,7 @@ docker compose up -d
 |-----------------------------------|------------------------------------------------------------------------------|
 | `WEB_HOST`                        | Spexflix's address                                                           |
 | `API_HOST`                        | Public address of the API, for `/docs`                                       |
-| `MEDIA_HOST`                      | The media hostname: on staging the tailnet name of `tailnet-spexflix-media`   |
+| `MEDIA_HOST`                      | The media hostname: on staging the Funnel name of `tailnet-spexflix-media`    |
 | `KEYCLOAK_HOST`, `KEYCLOAK_REALM` | Keycloak's public address and realm                                          |
 | `WORKER_CPUS`                     | CPUs the worker may use                                                      |
 | `MAX_UPLOAD_SIZE`                 | The largest upload the deployment accepts; admins can lower it in the web    |
@@ -150,7 +150,7 @@ the users. Spexregister deletes all Keycloak users on every start of its sample 
 |---------------------------------------------------|-----------------------------------------------------------------------------|
 | Videos don't play; the browser shows 403 from `MEDIA_HOST` | `API_MEDIA_SIGNING_KEY` differs between the API and `spexflix-media`, or the clocks differ |
 | Videos don't play; the console names a Content Security Policy | `MEDIA_HOST` changed without restarting `spexflix-web`             |
-| Videos don't play; `MEDIA_HOST` can't be reached (staging) | The device isn't on the tailnet or not allowed `tag:fgv-staging`, or `tailnet-spexflix-media` isn't running |
+| Videos don't play; `MEDIA_HOST` can't be reached (staging) | `tailnet-spexflix-media` isn't running or logged in (see its log), or Funnel isn't allowed for `tag:fgv-staging` |
 | Videos stay "processing"                          | `spexflix-worker` is down; see *Bearbetning* under *Redigera*               |
 | Login fails with "Invalid parameter: redirect_uri" | `SPEXFLIX_WEB_HOST` in `fgv-infra-deploy` doesn't match `WEB_HOST`         |
 
