@@ -20,7 +20,8 @@ spexify-api ──▶ spexflix-api                                  (chapter lin
 ```
 
 - On staging, the web goes through the Cloudflare Tunnel like Spexregister. Uploads are tus chunks of at most 50 MB
-  through the web, below the request limit of Cloudflare's free plan. The API hostname is needed only for `/docs`.
+  through the web, below the request limit of Cloudflare's free plan. The API hostname serves the whole API
+  (GraphQL, uploads) and `/docs`, for API clients.
 - Video doesn't go through Cloudflare, whose CDN terms restrict serving video on the free plans. Staging's host isn't
   reachable from the internet, so `MEDIA_HOST` is `spexflix-media-staging.<tailnet>.ts.net`, published with Tailscale
   Funnel (`compose.tailnet.yaml` in `fgv-infra-deploy`, see its *Tailnet*); viewers need no Tailscale. Funnel's
@@ -93,7 +94,7 @@ docker compose up -d
 | Variable                          | Purpose                                                                      |
 |-----------------------------------|------------------------------------------------------------------------------|
 | `WEB_HOST`                        | Spexflix's address                                                           |
-| `API_HOST`                        | Public address of the API, for `/docs`                                       |
+| `API_HOST`                        | Public address of the API: GraphQL, uploads and `/docs`                      |
 | `MEDIA_HOST`                      | The media hostname: on staging the Funnel name of `tailnet-spexflix-media`    |
 | `KEYCLOAK_HOST`, `KEYCLOAK_REALM` | Keycloak's public address and realm                                          |
 | `WORKER_CPUS`                     | CPUs the worker may use                                                      |
@@ -102,6 +103,7 @@ docker compose up -d
 | `SPEXIFY_GRAPHQL_URL`, `SPEXIFY_WEB_URL` | Spexify, for links between chapters and tracks; empty without Spexify; also the application switcher |
 | `SPEXREGISTER_WEB_URL`            | Spexregister's web, for links to a spex; also the application switcher       |
 | `FGV_REVIVAL_WEB_URL`             | Nyuppsättning's web, for the application switcher                            |
+| `SPEXGRAM_WEB_URL`, `ARCHIVE_WEB_URL` | Spexgram's and Spexarkivet's webs, for the application switcher         |
 | `API_IMPORT_SAMPLE_DATA`          | `true` on staging only: replaces all data at every start                     |
 | `API_SAMPLE_DATA_SIZE`, `API_SAMPLE_DATA_PREPROCESSED` | `small` or `large`; `true` to process every sample video at start |
 | `SUPPORT_EMAIL`, `FEEDBACK_EMAIL` | Shown on the Support and About pages                                         |
