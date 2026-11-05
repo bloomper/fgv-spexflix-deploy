@@ -20,7 +20,8 @@ spexify-api ──▶ spexflix-api                                  (chapter lin
 ```
 
 - On staging, the web goes through the Cloudflare Tunnel like Spexregister. Uploads are tus chunks of at most 50 MB
-  through the web, below the request limit of Cloudflare's free plan. The API hostname is needed only for `/docs`.
+  through the web, below the request limit of Cloudflare's free plan. The API hostname serves the whole API
+  (GraphQL, uploads) and `/docs`, for API clients.
 - Video doesn't go through Cloudflare, whose CDN terms restrict serving video on the free plans. Staging's host isn't
   reachable from the internet, so `MEDIA_HOST` is `spexflix-media-staging.<tailnet>.ts.net`, published with Tailscale
   Funnel (`compose.tailnet.yaml` in `fgv-infra-deploy`, see its *Tailnet*); viewers need no Tailscale. Funnel's
@@ -93,7 +94,7 @@ docker compose up -d
 | Variable                          | Purpose                                                                      |
 |-----------------------------------|------------------------------------------------------------------------------|
 | `WEB_HOST`                        | Spexflix's address                                                           |
-| `API_HOST`                        | Public address of the API, for `/docs`                                       |
+| `API_HOST`                        | Public address of the API: GraphQL, uploads and `/docs`                      |
 | `MEDIA_HOST`                      | The media hostname: on staging the Funnel name of `tailnet-spexflix-media`    |
 | `KEYCLOAK_HOST`, `KEYCLOAK_REALM` | Keycloak's public address and realm                                          |
 | `WORKER_CPUS`                     | CPUs the worker may use                                                      |
