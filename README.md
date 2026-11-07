@@ -10,7 +10,7 @@ Cloudflare and Tailscale are used on staging only. Production uses neither: its 
 ```
 Staging:
 Browser ──https──▶ Cloudflare ──tunnel──▶ cloudflared ─┬─▶ spexflix-web:3000            (WEB_HOST)
-                                                       └─▶ spexflix-api:8080            (API_HOST, optional)
+                                                       └─▶ spexflix-api:8080            (API_HOST)
 Browser ──https──▶ Tailscale Funnel ──▶ tailnet-spexflix-media (fgv-infra-deploy) ──▶ spexflix-media:80   (MEDIA_HOST)
 
 spexflix-web ──▶ spexflix-api ──▶ spexflix-mysql
@@ -21,7 +21,7 @@ spexify-api ──▶ spexflix-api                                  (chapter lin
 
 - On staging, the web goes through the Cloudflare Tunnel like Spexregister. Uploads are tus chunks of at most 50 MB
   through the web, below the request limit of Cloudflare's free plan. The API hostname serves the whole API
-  (GraphQL, uploads) and `/docs`, for API clients.
+  (GraphQL, uploads) and `/docs`, for other applications.
 - Video doesn't go through Cloudflare, whose CDN terms restrict serving video on the free plans. Staging's host isn't
   reachable from the internet, so `MEDIA_HOST` is `spexflix-media-staging.<tailnet>.ts.net`, published with Tailscale
   Funnel (`compose.tailnet.yaml` in `fgv-infra-deploy`, see its *Tailnet*); viewers need no Tailscale. Funnel's
