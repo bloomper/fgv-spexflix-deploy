@@ -157,7 +157,7 @@ services:
 
   # Serves renditions, thumbnails and subtitles from signed addresses; reached by the edge proxy in fgv-infra-deploy
   spexflix-media:
-    image: ${NGINX_IMAGE:-nginx:1.29-alpine}
+    image: ${NGINX_IMAGE:-nginx:1.30-alpine}
     command:
       - sh
       - -c
