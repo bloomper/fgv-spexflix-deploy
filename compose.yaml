@@ -78,6 +78,10 @@ services:
       API_IMPORT_SAMPLE_DATA: ${API_IMPORT_SAMPLE_DATA:-false}
       API_SAMPLE_DATA_SIZE: ${API_SAMPLE_DATA_SIZE:-small}
       API_SAMPLE_DATA_PREPROCESSED: ${API_SAMPLE_DATA_PREPROCESSED:-false}
+      # The MCP endpoint names itself https://API_HOST/api/mcp, the audience of fgv-spexflix-mcp's tokens
+      API_BASE_URL: https://${API_HOST:?API_HOST must be set in .env}
+      # Links to Spexflix Web in the MCP tools' answers
+      API_WEB_URL: https://${WEB_HOST}
     volumes:
       - ./data/api/log_data:/data/log_data
       - ./data/media:/data/media
