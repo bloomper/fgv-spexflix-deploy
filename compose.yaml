@@ -21,11 +21,10 @@ x-api: &api
     LOGGING_FILE_PATH: /data/log_data
     API_KEYCLOAK_URL: http://keycloak-server:8080/auth
     API_KEYCLOAK_REALM: ${KEYCLOAK_REALM}
-    API_KEYCLOAK_ADMIN_CLIENT_ID: fgv-admin
     API_MEDIA_ROOT: /data/media
     API_MEDIA_BASE_URL: https://${MEDIA_HOST}
     API_MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-50GB}
-    API_SPEXREGISTER_GRAPHQL_URL: ${SPEXREGISTER_GRAPHQL_URL:-http://spexregister-api:8080/api/graphql}
+    API_SPEXIPEDIA_GRAPHQL_URL: ${SPEXIPEDIA_GRAPHQL_URL:-http://spexipedia-api:8080/api/graphql}
     API_SPEXIFY_GRAPHQL_URL: ${SPEXIFY_GRAPHQL_URL:-}
     API_WORKER_ENABLED: "false"
     API_IMPORT_SAMPLE_DATA: "false"
@@ -44,12 +43,9 @@ x-api: &api
   secrets:
     - source: MYSQL_USER_PASSWORD
       target: MYSQL_API_USER_PASSWORD
-    - source: KEYCLOAK_ADMIN_CLIENT_SECRET
-      target: API_KEYCLOAK_ADMIN_CLIENT_SECRET
     - source: KEYCLOAK_SERVICE_CLIENT_SECRET
       target: API_KEYCLOAK_SERVICE_CLIENT_SECRET
     - API_MEDIA_SIGNING_KEY
-    - SAMPLE_USER_PASSWORD
 
 services:
   spexflix-mysql:
@@ -61,6 +57,7 @@ services:
       MYSQL_PASSWORD_FILE: /run/secrets/MYSQL_USER_PASSWORD
     restart: unless-stopped
     logging: *logging
+    security_opt: *security-opt
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent" ]
       interval: 10s
@@ -81,6 +78,10 @@ services:
       API_IMPORT_SAMPLE_DATA: ${API_IMPORT_SAMPLE_DATA:-false}
       API_SAMPLE_DATA_SIZE: ${API_SAMPLE_DATA_SIZE:-small}
       API_SAMPLE_DATA_PREPROCESSED: ${API_SAMPLE_DATA_PREPROCESSED:-false}
+      # The MCP endpoint names itself https://API_HOST/api/mcp, the audience of fgv-spexflix-mcp's tokens
+      API_BASE_URL: https://${API_HOST:?API_HOST must be set in .env}
+      # Links to Spexflix Web in the MCP tools' answers
+      API_WEB_URL: https://${WEB_HOST}
     volumes:
       - ./data/api/log_data:/data/log_data
       - ./data/media:/data/media
@@ -128,8 +129,9 @@ services:
       SPEXREGISTER_WEB_URL: ${SPEXREGISTER_WEB_URL:-}
       SUPPORTED_LOCALES: ${SUPPORTED_LOCALES:-sv,en}
       DEFAULT_LOCALE: ${DEFAULT_LOCALE:-sv}
-      FGV_REVIVAL_WEB_URL: ${FGV_REVIVAL_WEB_URL:-}
+      REVIVAL_WEB_URL: ${REVIVAL_WEB_URL:-}
       SPEXGRAM_WEB_URL: ${SPEXGRAM_WEB_URL:-}
+      SPEXIPEDIA_WEB_URL: ${SPEXIPEDIA_WEB_URL:-}
       ARCHIVE_WEB_URL: ${ARCHIVE_WEB_URL:-}
       SUPPORT_EMAIL: ${SUPPORT_EMAIL}
       FEEDBACK_EMAIL: ${FEEDBACK_EMAIL}
@@ -156,7 +158,7 @@ services:
 
   # Serves renditions, thumbnails and subtitles from signed addresses; reached by the edge proxy in fgv-infra-deploy
   spexflix-media:
-    image: ${NGINX_IMAGE:-nginx:1.29-alpine}
+    image: ${NGINX_IMAGE:-nginx:1.30-alpine}
     command:
       - sh
       - -c
@@ -196,13 +198,9 @@ secrets:
     file: ./secrets/MYSQL_USER_PASSWORD
   KEYCLOAK_SERVICE_CLIENT_SECRET:
     file: ./secrets/KEYCLOAK_SERVICE_CLIENT_SECRET
-  KEYCLOAK_ADMIN_CLIENT_SECRET:
-    file: ./secrets/KEYCLOAK_ADMIN_CLIENT_SECRET
   KEYCLOAK_CLIENT_SECRET:
     file: ./secrets/KEYCLOAK_CLIENT_SECRET
   API_MEDIA_SIGNING_KEY:
     file: ./secrets/API_MEDIA_SIGNING_KEY
-  SAMPLE_USER_PASSWORD:
-    file: ./secrets/SAMPLE_USER_PASSWORD
   WEB_AUTH_SECRET:
     file: ./secrets/WEB_AUTH_SECRET

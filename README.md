@@ -15,7 +15,8 @@ Browser ──https──▶ Tailscale Funnel ──▶ tailnet-spexflix-media (
 
 spexflix-web ──▶ spexflix-api ──▶ spexflix-mysql
                  spexflix-worker ──▶ spexflix-mysql          (processes uploads with ffmpeg)
-                 spexflix-api ──▶ keycloak-server, spexregister-api, spexify-api        (fgv network)
+                 spexflix-api ──▶ keycloak-server, spexipedia-api, spexify-api      (fgv network)
+                 spexipedia-api ──▶ spexflix-api (spexipediaVideos, /api/sync/notify)   (fgv network)
 spexify-api ──▶ spexflix-api                                  (chapter links, fgv network)
 ```
 
@@ -52,7 +53,10 @@ spexify-api ──▶ spexflix-api                                  (chapter lin
   names this deployment's `WEB_HOST` as `SPEXFLIX_WEB_HOST`. On staging, its tailnet containers (`compose.tailnet.yaml`)
   run; on production, its edge proxy (`compose.edge.yaml`, whose `.env` names `MEDIA_HOST` as `SPEXFLIX_MEDIA_HOST`) or
   production's own reverse proxy.
-- `spexregister-deploy` running a `spexregister-server` release that knows the `MEDIA` role.
+- `fgv-spexipedia-deploy` running: Spexflix reads spex from Spexipedia and follows its change feed. Its sample data adds
+  Spexflix as a recipient of change notices; in production an admin adds it under *Administration → Mottagare av
+  ändringar* (`fgv-spexflix-service`, `http://spexflix-api:8080/api/sync/notify`).
+- `fgv-infra-deploy`'s `bin/seed-users.sh` run, for the sample users and their roles.
 - Optionally `fgv-spexify-deploy`, for links between chapters and tracks.
 - Enough disk for the media: a full show of two and a half hours takes about 10 GB of renditions plus its original.
 - CPU for transcoding: the worker uses at most `WORKER_CPUS` and runs ffmpeg at low priority.
@@ -99,10 +103,11 @@ docker compose up -d
 | `KEYCLOAK_HOST`, `KEYCLOAK_REALM` | Keycloak's public address and realm                                          |
 | `WORKER_CPUS`                     | CPUs the worker may use                                                      |
 | `MAX_UPLOAD_SIZE`                 | The largest upload the deployment accepts; admins can lower it in the web    |
-| `SPEXREGISTER_GRAPHQL_URL`        | Spexregister's GraphQL endpoint on the shared network                        |
+| `SPEXIPEDIA_GRAPHQL_URL`          | Spexipedia's GraphQL endpoint on the shared network: spex and the change feed |
+| `SPEXIPEDIA_WEB_URL`              | Spexipedia's web, for the application switcher |
 | `SPEXIFY_GRAPHQL_URL`, `SPEXIFY_WEB_URL` | Spexify, for links between chapters and tracks; empty without Spexify; also the application switcher |
 | `SPEXREGISTER_WEB_URL`            | Spexregister's web, for links to a spex; also the application switcher       |
-| `FGV_REVIVAL_WEB_URL`             | Nyuppsättning's web, for the application switcher                            |
+| `REVIVAL_WEB_URL`             | Nyuppsättning's web, for the application switcher                            |
 | `SPEXGRAM_WEB_URL`, `ARCHIVE_WEB_URL` | Spexgram's and Spexarkiv's webs, for the application switcher         |
 | `API_IMPORT_SAMPLE_DATA`          | `true` on staging only: replaces all data at every start                     |
 | `API_SAMPLE_DATA_SIZE`, `API_SAMPLE_DATA_PREPROCESSED` | `small` or `large`; `true` to process every sample video at start |
@@ -131,9 +136,8 @@ read-only:
 ## First start
 
 The API creates its tables, and on staging (`API_IMPORT_SAMPLE_DATA=true`) replaces all data with sample data built on
-Spexregister's sample spex, which the worker then processes; see *Sample data* in `fgv-spexflix-server`'s README for
-the users. Spexregister deletes all Keycloak users on every start of its sample import, so restart Spexflix after it:
-`docker compose restart spexflix-api`.
+Spexipedia's sample spex, which the worker then processes; see *Sample data* in `fgv-spexflix-server`'s README for
+the users, which are `fgv-infra-deploy`'s.
 
 ## Production
 
