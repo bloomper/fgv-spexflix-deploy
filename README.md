@@ -56,7 +56,7 @@ spexify-api ──▶ spexflix-api                                  (chapter lin
 - `fgv-spexipedia-deploy` running: Spexflix reads spex from Spexipedia and follows its change feed. Its sample data adds
   Spexflix as a recipient of change notices; in production an admin adds it under *Administration → Mottagare av
   ändringar* (`fgv-spexflix-service`, `http://spexflix-api:8080/api/sync/notify`).
-- `spexregister-deploy` running, for the sample data's users.
+- `fgv-infra-deploy`'s `bin/seed-users.sh` run, for the sample users and their roles.
 - Optionally `fgv-spexify-deploy`, for links between chapters and tracks.
 - Enough disk for the media: a full show of two and a half hours takes about 10 GB of renditions plus its original.
 - CPU for transcoding: the worker uses at most `WORKER_CPUS` and runs ffmpeg at low priority.
@@ -136,9 +136,8 @@ read-only:
 ## First start
 
 The API creates its tables, and on staging (`API_IMPORT_SAMPLE_DATA=true`) replaces all data with sample data built on
-Spexregister's sample spex, which the worker then processes; see *Sample data* in `fgv-spexflix-server`'s README for
-the users. Spexregister deletes all Keycloak users on every start of its sample import, so restart Spexflix after it:
-`docker compose restart spexflix-api`.
+Spexipedia's sample spex, which the worker then processes; see *Sample data* in `fgv-spexflix-server`'s README for
+the users, which are `fgv-infra-deploy`'s.
 
 ## Production
 
