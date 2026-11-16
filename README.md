@@ -107,7 +107,7 @@ docker compose up -d
 | `SPEXIPEDIA_WEB_URL`              | Spexipedia's web, for the application switcher |
 | `SPEXIFY_GRAPHQL_URL`, `SPEXIFY_WEB_URL` | Spexify, for links between chapters and tracks; empty without Spexify; also the application switcher |
 | `SPEXREGISTER_WEB_URL`            | Spexregister's web, for links to a spex; also the application switcher       |
-| `FGV_REVIVAL_WEB_URL`             | Nyuppsättning's web, for the application switcher                            |
+| `REVIVAL_WEB_URL`             | Nyuppsättning's web, for the application switcher                            |
 | `SPEXGRAM_WEB_URL`, `ARCHIVE_WEB_URL` | Spexgram's and Spexarkiv's webs, for the application switcher         |
 | `API_IMPORT_SAMPLE_DATA`          | `true` on staging only: replaces all data at every start                     |
 | `API_SAMPLE_DATA_SIZE`, `API_SAMPLE_DATA_PREPROCESSED` | `small` or `large`; `true` to process every sample video at start |
