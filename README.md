@@ -28,7 +28,9 @@ spexify-api ──▶ spexflix-api                                  (chapter lin
   Funnel (`compose.tailnet.yaml` in `fgv-infra-deploy`, see its *Tailnet*); viewers need no Tailscale. Funnel's
   bandwidth is limited, which suits a few testers. On production, `edge-caddy` or production's reverse proxy serves it.
   Either way it forwards to `spexflix-media`: nginx, serving only files under signed, expiring addresses
-  (`media/default.conf.template`, nginx `secure_link`). Originals are never served.
+  (`media/default.conf.template`, nginx `secure_link`). Originals are never served. It allows cross-origin requests
+  from the web (`WEB_HOST`) and from Google Cast's Default Media Receiver (`https://www.gstatic.com`), which fetches the
+  same signed addresses when a viewer casts to a Chromecast; a Chromecast must therefore reach `MEDIA_HOST` too.
 
 ## Files
 
@@ -90,7 +92,7 @@ cd fgv-spexflix-deploy
 cp staging.env.example .env          # set the hostnames
 bin/init-secrets.sh                  # copies the client secrets from ../fgv-infra-deploy
 nano secrets/cloudflared.env         # staging only: TUNNEL_TOKEN=<token from step 2>
-mkdir -p data/api/log_data data/worker/log_data data/media/hls
+mkdir -p data/api/log_data data/worker/log_data data/media/hls data/imports
 sudo chown -R 1000:1000 data
 docker compose up -d
 ```
@@ -157,6 +159,7 @@ the users, which are `fgv-infra-deploy`'s.
 | Videos don't play; the browser shows 403 from `MEDIA_HOST` | `API_MEDIA_SIGNING_KEY` differs between the API and `spexflix-media`, or the clocks differ |
 | Videos don't play; the console names a Content Security Policy | `MEDIA_HOST` changed without restarting `spexflix-web`             |
 | Videos don't play; `MEDIA_HOST` can't be reached (staging) | `tailnet-spexflix-media` isn't running or logged in (see its log), or Funnel isn't allowed for `tag:fgv-staging` |
+| Casting connects, but the TV shows an error       | The Chromecast can't reach `MEDIA_HOST` (e.g. staging without Funnel), or `spexflix-media` runs an old configuration without the Cast origin |
 | Videos stay "processing"                          | `spexflix-worker` is down; see *Bearbetning* under *Redigera*               |
 | Login fails with "Invalid parameter: redirect_uri" | `SPEXFLIX_WEB_HOST` in `fgv-infra-deploy` doesn't match `WEB_HOST`         |
 

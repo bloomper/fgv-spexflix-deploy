@@ -6,6 +6,14 @@
 
 log_format media '$remote_addr [$time_local] "$request_method $media_uuid" $status $body_bytes_sent "$http_user_agent"';
 
+# CORS: the Spexflix web, and Google Cast's Default Media Receiver (served from www.gstatic.com), which fetches the
+# playlists, segments and subtitles itself when a viewer casts to a Chromecast. Any other origin gets no CORS headers.
+map $http_origin $media_cors_origin {
+    "${SPEXFLIX_WEB_ORIGIN}" $http_origin;
+    "https://www.gstatic.com" $http_origin;
+    default "";
+}
+
 map $uri $media_uuid {
     "~^/v/\d+/[^/]+/(?<u>[0-9a-f-]{36})/" $u;
     default -;
@@ -38,9 +46,10 @@ server {
             return 410;
         }
 
-        add_header Access-Control-Allow-Origin "${SPEXFLIX_WEB_ORIGIN}" always;
+        add_header Access-Control-Allow-Origin $media_cors_origin always;
+        add_header Vary Origin always;
         add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
-        add_header Access-Control-Allow-Headers "Range" always;
+        add_header Access-Control-Allow-Headers "Range, Content-Type, Accept-Encoding" always;
         add_header Access-Control-Expose-Headers "Content-Length, Content-Range" always;
         add_header Cache-Control "private, max-age=3600" always;
         add_header X-Content-Type-Options nosniff always;
