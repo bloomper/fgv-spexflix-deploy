@@ -92,7 +92,7 @@ cd fgv-spexflix-deploy
 cp staging.env.example .env          # set the hostnames
 bin/init-secrets.sh                  # copies the client secrets from ../fgv-infra-deploy
 nano secrets/cloudflared.env         # staging only: TUNNEL_TOKEN=<token from step 2>
-mkdir -p data/api/log_data data/worker/log_data data/media/hls
+mkdir -p data/api/log_data data/worker/log_data data/media/hls data/imports
 sudo chown -R 1000:1000 data
 docker compose up -d
 ```
