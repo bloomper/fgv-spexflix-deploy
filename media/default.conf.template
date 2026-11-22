@@ -6,10 +6,12 @@
 
 log_format media '$remote_addr [$time_local] "$request_method $media_uuid" $status $body_bytes_sent "$http_user_agent"';
 
-# CORS: the Spexflix web, and Google Cast's Default Media Receiver (served from www.gstatic.com), which fetches the
-# playlists, segments and subtitles itself when a viewer casts to a Chromecast. Any other origin gets no CORS headers.
+# CORS: the Spexflix web, the Spexipedia web (whose spex pages play videos in sections of their own), and Google Cast's
+# Default Media Receiver (served from www.gstatic.com), which fetches the playlists, segments and subtitles itself when a
+# viewer casts to a Chromecast. Any other origin gets no CORS headers.
 map $http_origin $media_cors_origin {
     "${SPEXFLIX_WEB_ORIGIN}" $http_origin;
+    "${SPEXIPEDIA_WEB_ORIGIN}" $http_origin;
     "https://www.gstatic.com" $http_origin;
     default "";
 }
