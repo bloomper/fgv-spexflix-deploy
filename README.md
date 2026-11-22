@@ -29,7 +29,8 @@ spexify-api ──▶ spexflix-api                                  (chapter lin
   bandwidth is limited, which suits a few testers. On production, `edge-caddy` or production's reverse proxy serves it.
   Either way it forwards to `spexflix-media`: nginx, serving only files under signed, expiring addresses
   (`media/default.conf.template`, nginx `secure_link`). Originals are never served. It allows cross-origin requests
-  from the web (`WEB_HOST`) and from Google Cast's Default Media Receiver (`https://www.gstatic.com`), which fetches the
+  from the web (`WEB_HOST`), from Spexipedia's web (`SPEXIPEDIA_WEB_URL`, whose spex pages play videos in sections of
+  their own) and from Google Cast's Default Media Receiver (`https://www.gstatic.com`), which fetches the
   same signed addresses when a viewer casts to a Chromecast; a Chromecast must therefore reach `MEDIA_HOST` too.
 
 ## Files
@@ -106,7 +107,7 @@ docker compose up -d
 | `WORKER_CPUS`                     | CPUs the worker may use                                                      |
 | `MAX_UPLOAD_SIZE`                 | The largest upload the deployment accepts; admins can lower it in the web    |
 | `SPEXIPEDIA_GRAPHQL_URL`          | Spexipedia's GraphQL endpoint on the shared network: spex and the change feed |
-| `SPEXIPEDIA_WEB_URL`              | Spexipedia's web, for the application switcher |
+| `SPEXIPEDIA_WEB_URL`              | Spexipedia's web, for the application switcher, and the origin `spexflix-media` allows (CORS) for the videos on Spexipedia's spex pages; an origin, without a path |
 | `SPEXIFY_GRAPHQL_URL`, `SPEXIFY_WEB_URL` | Spexify, for links between chapters and tracks; empty without Spexify; also the application switcher |
 | `SPEXREGISTER_WEB_URL`            | Spexregister's web, for links to a spex; also the application switcher       |
 | `REVIVAL_WEB_URL`             | Nyuppsättning's web, for the application switcher                            |

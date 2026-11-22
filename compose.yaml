@@ -172,6 +172,8 @@ services:
         exec /docker-entrypoint.sh nginx -g 'daemon off;'
     environment:
       SPEXFLIX_WEB_ORIGIN: https://${WEB_HOST}
+      # Spexipedia's player fetches the playlists and segments of videos on its spex pages itself
+      SPEXIPEDIA_WEB_ORIGIN: ${SPEXIPEDIA_WEB_URL:-https://spexipedia.invalid}
     restart: unless-stopped
     logging: *logging
     security_opt: *security-opt
